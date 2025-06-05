@@ -7,7 +7,7 @@ from datetime import timedelta
 
 # === Metadata ===
 st.set_page_config(page_title="Market Echo", layout="wide")
-st.title("\ud83d\udd0a Market Echo: Media Sentiment and Stock Performance")
+st.title("Market Echo: Media Sentiment and Stock Performance")
 st.markdown("Analyze how CEO-related media coverage echoes through the market.")
 
 # === Project definitions ===
