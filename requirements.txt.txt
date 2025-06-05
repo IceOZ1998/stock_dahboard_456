@@ -1,5 +1,1 @@
-streamlit
-plotly
-pandas
-yfinance
-google-cloud-bigquery
+"delete requirements file"
