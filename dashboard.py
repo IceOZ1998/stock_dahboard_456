@@ -1,20 +1,16 @@
+import streamlit as st
 import os
 import json
-
-# שמירת מפתח ההרשאה כקובץ זמני
-with open("/tmp/service_account.json", "w") as f:
-    json.dump(st.secrets["google_service_account"], f)
-
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/service_account.json"
-
-
-
-import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from google.cloud import bigquery
 import yfinance as yf
 from datetime import timedelta
+
+# === שמירת מפתח ההרשאה מה-Secrets לקובץ זמני ===
+with open("/tmp/service_account.json", "w") as f:
+    json.dump(st.secrets["google_service_account"], f)
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/service_account.json"
 
 # === Metadata ===
 st.set_page_config(page_title="Market Echo", layout="wide")
