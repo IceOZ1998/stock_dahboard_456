@@ -71,15 +71,21 @@ if st.button("📥 Load Data"):
         df_stock = yf.download(ticker, start=start_date, end=end_date_yf.strftime("%Y-%m-%d"))
         df_stock = df_stock.reset_index()
 
+        # Flatten tuple column names if needed
+        df_stock.columns = ['_'.join(col) if isinstance(col, tuple) else col for col in df_stock.columns]
+
+        # Rename date column to 'date' if needed
         if "Date" in df_stock.columns:
             df_stock.rename(columns={"Date": "date"}, inplace=True)
-        df_stock["date"] = pd.to_datetime(df_stock["date"])
-        df_stock.columns = [col.lower() for col in df_stock.columns]  # lowercase everything
+        elif "date" not in df_stock.columns:
+            df_stock.rename(columns={df_stock.columns[0]: "date"}, inplace=True)
 
-        # === Prepare & merge
+        df_stock["date"] = pd.to_datetime(df_stock["date"])
+
+        # === Prepare and merge
         df_ceo["date"] = pd.to_datetime(df_ceo["date"])
-        df_merged = pd.merge(df_ceo, df_stock[["date", "close"]], on="date", how="inner")
-        df_merged.rename(columns={"close": "stock_price"}, inplace=True)
+        df_merged = pd.merge(df_ceo, df_stock[["date", "Close"]], on="date", how="inner")
+        df_merged.rename(columns={"Close": "stock_price"}, inplace=True)
 
         # === Label sentiment and salience
         def label_sentiment(score):
