@@ -13,20 +13,36 @@ with open("/tmp/service_account.json", "w") as f:
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/service_account.json"
 
-# === Basic setup ===
-ceo_name = "Jensen Huang"
-company_name, ticker = "NVIDIA", "NVDA"
-start_date = datetime(2025, 4, 1)
-end_date = datetime(2025, 4, 3)
-project_id = "bigdata456"
-dataset = "Big_Data_456_data"
-table = "ceo_articles_nvidia_test"
+# === CEO to Company Mapping ===
+ceo_to_company = {
+    "Jensen Huang": ("NVIDIA", "NVDA"),
+    "Elon Musk": ("Tesla", "TSLA"),
+    "Tim Cook": ("Apple", "AAPL"),
+    "Sundar Pichai": ("Alphabet", "GOOGL"),
+    "Satya Nadella": ("Microsoft", "MSFT"),
+    "Mark Zuckerberg": ("Meta", "META"),
+    "Andy Jassy": ("Amazon", "AMZN")
+}
 
 # === Dashboard layout ===
 st.set_page_config(page_title="Media & Stock Dashboard", layout="wide")
-st.title("📊 Media & Stock Dashboard – Jensen Huang")
+st.title("📊 Media & Stock Dashboard")
+
+# === UI: Select CEO and Dates ===
+ceo_name = st.selectbox("Select CEO", list(ceo_to_company.keys()))
+company_name, ticker = ceo_to_company[ceo_name]
+
+date_range = st.date_input("Select date range", value=(datetime(2025, 4, 1), datetime(2025, 4, 3)))
+start_date, end_date = date_range
+
+# === Display selected inputs ===
 st.markdown(f"**CEO:** {ceo_name}  |  **Company:** {company_name} ({ticker})")
-st.markdown(f"**Date range:** {start_date.date()} to {end_date.date()}")
+st.markdown(f"**Date range:** {start_date} to {end_date}")
+
+# === GDELT BigQuery table (same table for all CEOs for now) ===
+project_id = "bigdata456"
+dataset = "Big_Data_456_data"
+table = "ceo_articles_nvidia_test"
 
 # === Query GDELT data from BigQuery ===
 def get_ceo_daily_stats(project_id, dataset, table, ceo_name, start_date, end_date):
@@ -88,8 +104,8 @@ if st.button("🔍 Run Analysis"):
             dataset=dataset,
             table=table,
             ceo_name=ceo_name,
-            start_date=start_date.date(),
-            end_date=end_date.date()
+            start_date=start_date,
+            end_date=end_date
         )
     except Exception as e:
         st.error(f"❌ Error retrieving data from BigQuery: {e}")
@@ -104,6 +120,7 @@ if st.button("🔍 Run Analysis"):
         # === Chart 1: Stock Price ===
         with col1:
             st.subheader("💰 Stock Closing Price")
+            df_stock.index = df_stock.index.date  # remove time from x-axis
             st.line_chart(df_stock["Close"])
             st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
 
