@@ -39,7 +39,7 @@ start_date, end_date = date_range
 st.markdown(f"**CEO:** {ceo_name}  |  **Company:** {company_name} ({ticker})")
 st.markdown(f"**Date range:** {start_date} to {end_date}")
 
-# === GDELT BigQuery table (same table for all CEOs for now) ===
+# === GDELT BigQuery table ===
 project_id = "bigdata456"
 dataset = "Big_Data_456_data"
 table = "ceo_articles_nvidia_test"
@@ -83,6 +83,7 @@ def get_ceo_daily_stats(project_id, dataset, table, ceo_name, start_date, end_da
 
     df["sentiment_category"] = df["avg_sentiment"].apply(classify_sentiment)
     df["salience_label"] = "avgSalience: " + df["avg_salience"].round(3).astype(str)
+    df["date"] = pd.to_datetime(df["date"]).dt.date  # clean datetime format
     return df
 
 # === Main action ===
@@ -115,22 +116,33 @@ if st.button("🔍 Run Analysis"):
         st.warning("⚠️ No media data found for this CEO in the selected range.")
     else:
         # === Layout: side-by-side charts ===
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns([1, 1])
 
         # === Chart 1: Stock Price ===
         with col1:
             st.subheader("💰 Stock Closing Price")
             df_stock.index = df_stock.index.date  # remove time from x-axis
-            st.line_chart(df_stock["Close"])
+            stock_df = df_stock.reset_index()[["Date", "Close"]]
+            stock_chart = alt.Chart(stock_df).mark_line(point=True).encode(
+                x=alt.X("Date:T", title="Date", axis=alt.Axis(format="%Y-%m-%d", labelAngle=0)),
+                y=alt.Y("Close:Q", title="Price"),
+                tooltip=["Date", "Close"]
+            ).properties(
+                width=400,
+                height=300
+            )
+            st.altair_chart(stock_chart, use_container_width=False)
             st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
 
         # === Chart 2: GDELT Media ===
         with col2:
             st.subheader("📰 Daily Media Mentions")
 
-            date_axis = alt.Axis(format='%Y-%m-%d', title="Date")
-
-            base = alt.Chart(df_ceo).encode(x=alt.X("date:T", axis=date_axis))
+            base = alt.Chart(df_ceo).encode(
+                x=alt.X("date:T", title="Date",
+                        axis=alt.Axis(format='%Y-%m-%d', labelAngle=0),
+                        scale=alt.Scale(bandPaddingInner=0.1))
+            )
 
             bars = base.mark_bar(color="orange").encode(
                 y=alt.Y("total_mentions:Q", title="Mentions"),
@@ -158,10 +170,11 @@ if st.button("🔍 Run Analysis"):
 
             combined_chart = alt.layer(bars, salience_labels, sentiment_labels).properties(
                 height=300,
+                width=400,
                 title="📢 Mentions per Day (with Sentiment & Salience)"
             )
 
-            st.altair_chart(combined_chart, use_container_width=True)
+            st.altair_chart(combined_chart, use_container_width=False)
 
         # === Optional: show raw data
         st.markdown("### 📄 Raw GDELT Data")
