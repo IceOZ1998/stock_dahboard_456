@@ -1,18 +1,18 @@
-import streamlit as st
 import os
 import json
+import streamlit as st
 from datetime import datetime
 import pandas as pd
 import yfinance as yf
 from google.cloud import bigquery
 
-# === טעינת ההרשאות מתוך secrets ב-Streamlit Cloud ===
+# === טעינת מפתח ההרשאה מ-Stremlit Secrets ===
 with open("/tmp/service_account.json", "w") as f:
-    json.dump(st.secrets["google_service_account"].to_dict(), f)
+    f.write(st.secrets["google_service_account"]["json"])
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/service_account.json"
 
-# === פרטי ניתוח קבועים לשלב הניסוי ===
+# === הגדרות בסיסיות ===
 ceo_name = "Jensen Huang"
 company_name, ticker = "NVIDIA", "NVDA"
 start_date = datetime(2025, 4, 1)
@@ -21,17 +21,16 @@ project_id = "bigdata456"
 dataset = "Big_Data_456_data"
 table = "ceo_articles_nvidia_test"
 
-# === הגדרות עיצוב ===
-st.set_page_config(page_title="CEO Media & Stock Dashboard", layout="wide")
+# === עיצוב הדשבורד ===
+st.set_page_config(page_title="Media & Stock Dashboard", layout="wide")
 st.title("📊 Media & Stock Dashboard (ניסוי על Jensen Huang)")
-
 st.markdown(f"**מנכ\"ל:** {ceo_name}  |  **חברה:** {company_name} ({ticker})")
 st.markdown(f"**טווח תאריכים:** {start_date.date()} עד {end_date.date()}")
 
-# === פונקציה לשליפת נתונים תקשורתיים מהטבלה ===
+# === פונקציה לשליפת נתוני BigQuery ===
 def get_ceo_daily_stats(project_id, dataset, table, ceo_name, start_date, end_date):
     client = bigquery.Client(project=project_id)
-    
+
     query = f"""
     SELECT
       date,
@@ -44,7 +43,7 @@ def get_ceo_daily_stats(project_id, dataset, table, ceo_name, start_date, end_da
     GROUP BY date
     ORDER BY date
     """
-    
+
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
             bigquery.ScalarQueryParameter("ceo_name", "STRING", ceo_name),
@@ -52,8 +51,8 @@ def get_ceo_daily_stats(project_id, dataset, table, ceo_name, start_date, end_da
             bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
         ]
     )
-    
-    result = client.query(query, job_config=job_config).result().to_dataframe()
+
+    df = client.query(query, job_config=job_config).result().to_dataframe()
 
     def classify_sentiment(score):
         if pd.isna(score):
@@ -64,13 +63,13 @@ def get_ceo_daily_stats(project_id, dataset, table, ceo_name, start_date, end_da
             return "☹ שלילי"
         else:
             return "⏺ נייטרלי"
-    
-    result["sentiment_category"] = result["avg_sentiment"].apply(classify_sentiment)
-    return result
 
-# === כפתור להרצת הניתוח ===
+    df["sentiment_category"] = df["avg_sentiment"].apply(classify_sentiment)
+    return df
+
+# === כפתור להרצת ניתוח ===
 if st.button("🔍 הפעל ניתוח"):
-    # === שליפת נתוני מניה מ-yfinance ===
+    # === שליפת נתוני מניה ===
     df_stock = yf.download(ticker, start=start_date, end=end_date + pd.Timedelta(days=1))
 
     if df_stock.empty:
@@ -84,9 +83,9 @@ if st.button("🔍 הפעל ניתוח"):
         st.line_chart(df_stock["Close"])
         st.markdown(f"**תנועת מחיר כוללת:** {trend} (מ־{start_price:.2f} ל־{end_price:.2f})")
 
-    # === שליפת נתוני GDELT מהטבלה ===
+    # === שליפת נתונים מהטבלה בגוגל ===
     try:
-        df_ceo_stats = get_ceo_daily_stats(
+        df_ceo = get_ceo_daily_stats(
             project_id=project_id,
             dataset=dataset,
             table=table,
@@ -98,21 +97,20 @@ if st.button("🔍 הפעל ניתוח"):
         st.error(f"❌ שגיאה בשליפת הנתונים מ-BigQuery: {e}")
         st.stop()
 
-    if df_ceo_stats.empty:
+    if df_ceo.empty:
         st.warning("⚠️ לא נמצאו נתונים תקשורתיים בטווח שנבחר")
     else:
         st.subheader("📰 ניתוח תקשורתי יומי (GDELT)")
-        
-        st.dataframe(df_ceo_stats.style.format({
+        st.dataframe(df_ceo.style.format({
             "avg_sentiment": "{:.2f}",
             "avg_salience": "{:.2f}"
         }))
-        
+
         st.markdown("**🎯 ממוצע סנטימנט יומי:**")
-        st.bar_chart(df_ceo_stats.set_index("date")["avg_sentiment"])
+        st.bar_chart(df_ceo.set_index("date")["avg_sentiment"])
 
         st.markdown("**📢 כמות האזכורים:**")
-        st.bar_chart(df_ceo_stats.set_index("date")["total_mentions"])
+        st.bar_chart(df_ceo.set_index("date")["total_mentions"])
 
         st.markdown("**🔥 ממוצע Salience:**")
-        st.line_chart(df_ceo_stats.set_index("date")["avg_salience"])
+        st.line_chart(df_ceo.set_index("date")["avg_salience"])
