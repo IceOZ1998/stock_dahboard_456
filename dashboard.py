@@ -103,11 +103,12 @@ if st.button("🔍 Run Analysis"):
     # === Layout: side-by-side charts ===
     col1, col2 = st.columns(2)
 
-    # === Chart 1: Stock Price (Altair, clean date axis) ===
+    # === Chart 1: Stock Price (fixed) ===
     with col1:
         st.subheader("💰 Stock Closing Price")
-        df_stock_chart = df_stock.copy()
-        df_stock_chart["date"] = pd.to_datetime(df_stock_chart.index.date)
+
+        df_stock_chart = df_stock.reset_index()
+        df_stock_chart["date"] = pd.to_datetime(df_stock_chart["Date"].dt.date)
 
         stock_chart = alt.Chart(df_stock_chart).mark_line(color="steelblue").encode(
             x=alt.X("date:T", title="Date", axis=alt.Axis(format='%Y-%m-%d'), scale=alt.Scale(nice=False)),
@@ -117,6 +118,7 @@ if st.button("🔍 Run Analysis"):
             height=300,
             title="📈 Stock Closing Price"
         )
+
         st.altair_chart(stock_chart, use_container_width=True)
         st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
 
