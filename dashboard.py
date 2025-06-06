@@ -79,20 +79,21 @@ if st.button("📥 Load Data"):
         st.subheader("📄 GDELT Daily Summary")
         st.dataframe(df_ceo)
 
-        # === Get stock data from Yahoo Finance
+        # === Stock data from yfinance ===
         end_date_yf = end_date + timedelta(days=1)
         df_stock = yf.download(ticker, start=start_date, end=end_date_yf.strftime("%Y-%m-%d"))
         df_stock = df_stock.reset_index()
-        df_stock.columns = df_stock.columns.map(str)  # 🔧 flatten column names
+        df_stock.columns = df_stock.columns.map(str)
+        df_stock = df_stock.rename(columns=lambda x: x.lower())  # fixes 'Date' issue
 
         if df_stock.empty:
             st.error("❌ No stock data retrieved.")
             st.stop()
 
         df_ceo["date"] = pd.to_datetime(df_ceo["date"])
-        df_stock["date"] = pd.to_datetime(df_stock["Date"])
-        df_merged = pd.merge(df_ceo, df_stock[["date", "Close"]], on="date", how="inner")
-        df_merged.rename(columns={"Close": "stock_price"}, inplace=True)
+        df_stock["date"] = pd.to_datetime(df_stock["date"])
+        df_merged = pd.merge(df_ceo, df_stock[["date", "close"]], on="date", how="inner")
+        df_merged.rename(columns={"close": "stock_price"}, inplace=True)
 
         # === Combined chart ===
         line = alt.Chart(df_merged).mark_line(color="steelblue").encode(
