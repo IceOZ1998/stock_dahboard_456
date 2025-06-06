@@ -8,7 +8,7 @@ from google.cloud import bigquery
 
 # === טעינת ההרשאות מתוך secrets ב-Streamlit Cloud ===
 with open("/tmp/service_account.json", "w") as f:
-    json.dump(st.secrets["google_service_account"], f)
+    json.dump(st.secrets["google_service_account"].to_dict(), f)
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/service_account.json"
 
@@ -85,14 +85,18 @@ if st.button("🔍 הפעל ניתוח"):
         st.markdown(f"**תנועת מחיר כוללת:** {trend} (מ־{start_price:.2f} ל־{end_price:.2f})")
 
     # === שליפת נתוני GDELT מהטבלה ===
-    df_ceo_stats = get_ceo_daily_stats(
-        project_id=project_id,
-        dataset=dataset,
-        table=table,
-        ceo_name=ceo_name,
-        start_date=start_date.date(),
-        end_date=end_date.date()
-    )
+    try:
+        df_ceo_stats = get_ceo_daily_stats(
+            project_id=project_id,
+            dataset=dataset,
+            table=table,
+            ceo_name=ceo_name,
+            start_date=start_date.date(),
+            end_date=end_date.date()
+        )
+    except Exception as e:
+        st.error(f"❌ שגיאה בשליפת הנתונים מ-BigQuery: {e}")
+        st.stop()
 
     if df_ceo_stats.empty:
         st.warning("⚠️ לא נמצאו נתונים תקשורתיים בטווח שנבחר")
