@@ -7,12 +7,12 @@ from google.cloud import bigquery
 import yfinance as yf
 import altair as alt
 
-# === Load service account credentials from Streamlit secrets ===
+# === Load credentials from Streamlit secrets ===
 with open("/tmp/service_account.json", "w") as f:
     f.write(st.secrets["google_service_account"]["json"])
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/service_account.json"
 
-# === CEO → Company → Ticker mapping ===
+# === CEO ↔ Company ↔ Ticker Mapping ===
 ceo_to_company = {
     "Jensen Huang": ("NVIDIA", "NVDA"),
     "Elon Musk": ("Tesla", "TSLA"),
@@ -22,7 +22,7 @@ ceo_to_company = {
     "Andy Jassy": ("Amazon", "AMZN")
 }
 
-# === UI ===
+# === UI Setup ===
 st.set_page_config(page_title="Media & Stock Dashboard", layout="wide")
 st.title("📊 Media Coverage Impact on Stock Price")
 
@@ -33,11 +33,10 @@ ceo_name = selected_ceo
 start_date = st.date_input("Start date", datetime(2025, 4, 1))
 end_date = st.date_input("End date", datetime(2025, 4, 3))
 
-# === Load button ===
 if st.button("📥 Load Data"):
 
     try:
-        # === BigQuery Query ===
+        # === BigQuery query ===
         client = bigquery.Client()
 
         query = f"""
@@ -64,69 +63,71 @@ if st.button("📥 Load Data"):
         df_ceo = client.query(query, job_config=job_config).result().to_dataframe()
 
         if df_ceo.empty:
-            st.warning("⚠️ No GDELT data found for this date range.")
+            st.warning("⚠️ No GDELT data found for this CEO in the selected date range.")
             st.stop()
 
-        def label_sentiment(score):
-            if score > 0.2:
-                return "😊 Positive"
-            elif score < -0.2:
-                return "☹ Negative"
-            else:
-                return "⏺ Neutral"
-
-        df_ceo["sentiment_category"] = df_ceo["avg_sentiment"].apply(label_sentiment)
-        st.subheader("📄 GDELT Daily Summary")
-        st.dataframe(df_ceo)
-
-        # === Stock data from yfinance ===
+        # === Download stock data
         end_date_yf = end_date + timedelta(days=1)
         df_stock = yf.download(ticker, start=start_date, end=end_date_yf.strftime("%Y-%m-%d"))
         df_stock = df_stock.reset_index()
-        df_stock.columns = df_stock.columns.map(str)
-        df_stock = df_stock.rename(columns=lambda x: x.lower())  # fixes 'Date' issue
 
-        if df_stock.empty:
-            st.error("❌ No stock data retrieved.")
-            st.stop()
-
-        df_ceo["date"] = pd.to_datetime(df_ceo["date"])
+        if "Date" in df_stock.columns:
+            df_stock.rename(columns={"Date": "date"}, inplace=True)
         df_stock["date"] = pd.to_datetime(df_stock["date"])
+        df_stock.columns = [col.lower() for col in df_stock.columns]  # lowercase everything
+
+        # === Prepare & merge
+        df_ceo["date"] = pd.to_datetime(df_ceo["date"])
         df_merged = pd.merge(df_ceo, df_stock[["date", "close"]], on="date", how="inner")
         df_merged.rename(columns={"close": "stock_price"}, inplace=True)
 
-        # === Combined chart ===
-        line = alt.Chart(df_merged).mark_line(color="steelblue").encode(
-            x=alt.X("date:T", title="Date"),
-            y=alt.Y("stock_price:Q", title="Stock Price", scale=alt.Scale(zero=False)),
+        # === Label sentiment and salience
+        def label_sentiment(score):
+            if score > 0.2:
+                return "Positive"
+            elif score < -0.2:
+                return "Negative"
+            else:
+                return "Neutral"
+
+        df_merged["sentiment_category"] = df_merged["avg_sentiment"].apply(label_sentiment)
+        df_merged["salience_label"] = df_merged["avg_salience"].round(3).astype(str)
+
+        # === Altair Chart ===
+        base = alt.Chart(df_merged).encode(x=alt.X("date:T", title="Date"))
+
+        line = base.mark_line(color="steelblue").encode(
+            y=alt.Y("stock_price:Q", title="Stock Price"),
             tooltip=["date", "stock_price"]
         )
 
-        bars = alt.Chart(df_merged).mark_bar(opacity=0.6, color="orange").encode(
-            x="date:T",
-            y=alt.Y("total_mentions:Q", title="Mentions", axis=alt.Axis(titleColor="orange")),
+        bars = base.mark_bar(color="orange", opacity=0.7).encode(
+            y=alt.Y("total_mentions:Q", title="Mentions"),
             tooltip=["total_mentions"]
         )
 
-        labels = alt.Chart(df_merged).mark_text(
-            align="center",
-            baseline="bottom",
-            dy=-5,
-            fontSize=12
+        salience_labels = base.mark_text(
+            align="center", baseline="bottom", dy=-15, fontSize=10, color="black"
         ).encode(
-            x="date:T",
+            y="total_mentions:Q",
+            text="salience_label"
+        )
+
+        sentiment_labels = base.mark_text(
+            align="center", baseline="bottom", dy=-30, fontSize=11, fontWeight="bold", color="gray"
+        ).encode(
             y="total_mentions:Q",
             text="sentiment_category"
         )
 
-        chart = alt.layer(bars, line, labels).resolve_scale(
+        final_chart = alt.layer(bars, line, salience_labels, sentiment_labels).resolve_scale(
             y='independent'
         ).properties(
-            title=f"📈 {company_name}: Stock Price vs Media Activity",
-            height=300
+            title=f"{company_name}: Stock Price vs Mentions & Sentiment",
+            height=350
         )
 
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(final_chart, use_container_width=True)
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
