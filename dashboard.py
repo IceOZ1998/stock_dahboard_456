@@ -7,12 +7,12 @@ from google.cloud import bigquery
 import yfinance as yf
 import altair as alt
 
-# === הרשאות מ-Stremlit Secrets ===
+# === Load service account credentials from Streamlit secrets ===
 with open("/tmp/service_account.json", "w") as f:
     f.write(st.secrets["google_service_account"]["json"])
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/service_account.json"
 
-# === מיפוי מנכ"לים וחברות ===
+# === CEO → Company → Ticker mapping ===
 ceo_to_company = {
     "Jensen Huang": ("NVIDIA", "NVDA"),
     "Elon Musk": ("Tesla", "TSLA"),
@@ -22,22 +22,22 @@ ceo_to_company = {
     "Andy Jassy": ("Amazon", "AMZN")
 }
 
-# === ממשק משתמש ===
+# === UI ===
 st.set_page_config(page_title="Media & Stock Dashboard", layout="wide")
-st.title("📊 תקשורת ומניה – השפעה יומית")
+st.title("📊 Media Coverage Impact on Stock Price")
 
-selected_ceo = st.selectbox("בחר מנכ\"ל", list(ceo_to_company.keys()))
+selected_ceo = st.selectbox("Select CEO", list(ceo_to_company.keys()))
 company_name, ticker = ceo_to_company[selected_ceo]
 ceo_name = selected_ceo
 
-start_date = st.date_input("תאריך התחלה", datetime(2025, 4, 1))
-end_date = st.date_input("תאריך סיום", datetime(2025, 4, 3))
+start_date = st.date_input("Start date", datetime(2025, 4, 1))
+end_date = st.date_input("End date", datetime(2025, 4, 3))
 
-# === כפתור טעינה ===
-if st.button("📥 טען נתונים"):
+# === Load button ===
+if st.button("📥 Load Data"):
 
     try:
-        # === שליפת נתוני BigQuery ===
+        # === BigQuery Query ===
         client = bigquery.Client()
 
         query = f"""
@@ -64,47 +64,46 @@ if st.button("📥 טען נתונים"):
         df_ceo = client.query(query, job_config=job_config).result().to_dataframe()
 
         if df_ceo.empty:
-            st.warning("⚠️ לא נמצאו נתונים ב-GDELT לטווח הזה.")
+            st.warning("⚠️ No GDELT data found for this date range.")
             st.stop()
 
-        # תיוג סנטימנט
         def label_sentiment(score):
             if score > 0.2:
-                return "😊 חיובי"
+                return "😊 Positive"
             elif score < -0.2:
-                return "☹ שלילי"
+                return "☹ Negative"
             else:
-                return "⏺ נייטרלי"
+                return "⏺ Neutral"
 
         df_ceo["sentiment_category"] = df_ceo["avg_sentiment"].apply(label_sentiment)
-        st.subheader("📰 טבלת נתונים יומית (GDELT)")
+        st.subheader("📄 GDELT Daily Summary")
         st.dataframe(df_ceo)
 
-        # === נתוני מניה מ־yfinance ===
+        # === Get stock data from Yahoo Finance
         end_date_yf = end_date + timedelta(days=1)
         df_stock = yf.download(ticker, start=start_date, end=end_date_yf.strftime("%Y-%m-%d"))
-        df_stock = df_stock.reset_index(level=0)  # 🔧 תיקון ה־merge
+        df_stock = df_stock.reset_index()
+        df_stock.columns = df_stock.columns.map(str)  # 🔧 flatten column names
 
         if df_stock.empty:
-            st.error("❌ לא נמצאו נתוני מניה")
+            st.error("❌ No stock data retrieved.")
             st.stop()
 
-        # === מיזוג נתונים על בסיס תאריך ===
         df_ceo["date"] = pd.to_datetime(df_ceo["date"])
         df_stock["date"] = pd.to_datetime(df_stock["Date"])
         df_merged = pd.merge(df_ceo, df_stock[["date", "Close"]], on="date", how="inner")
         df_merged.rename(columns={"Close": "stock_price"}, inplace=True)
 
-        # === גרף משולב: מניה + אזכורים + סנטימנט ===
+        # === Combined chart ===
         line = alt.Chart(df_merged).mark_line(color="steelblue").encode(
-            x=alt.X("date:T", title="תאריך"),
-            y=alt.Y("stock_price:Q", title="מחיר מניה", scale=alt.Scale(zero=False)),
+            x=alt.X("date:T", title="Date"),
+            y=alt.Y("stock_price:Q", title="Stock Price", scale=alt.Scale(zero=False)),
             tooltip=["date", "stock_price"]
         )
 
         bars = alt.Chart(df_merged).mark_bar(opacity=0.6, color="orange").encode(
             x="date:T",
-            y=alt.Y("total_mentions:Q", title="כמות אזכורים", axis=alt.Axis(titleColor="orange")),
+            y=alt.Y("total_mentions:Q", title="Mentions", axis=alt.Axis(titleColor="orange")),
             tooltip=["total_mentions"]
         )
 
@@ -122,11 +121,11 @@ if st.button("📥 טען נתונים"):
         chart = alt.layer(bars, line, labels).resolve_scale(
             y='independent'
         ).properties(
-            title=f"📈 מניה מול תקשורת ({company_name})",
+            title=f"📈 {company_name}: Stock Price vs Media Activity",
             height=300
         )
 
         st.altair_chart(chart, use_container_width=True)
 
     except Exception as e:
-        st.error(f"❌ שגיאה: {e}")
+        st.error(f"❌ Error: {e}")
