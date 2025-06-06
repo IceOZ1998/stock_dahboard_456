@@ -71,7 +71,7 @@ if st.button("📥 Load Data"):
         df_stock = yf.download(ticker, start=start_date, end=end_date_yf.strftime("%Y-%m-%d"))
         df_stock = df_stock.reset_index()
 
-        # Flatten tuple column names if needed
+        # Flatten column names if needed
         df_stock.columns = ['_'.join(col) if isinstance(col, tuple) else col for col in df_stock.columns]
 
         # Rename date column to 'date' if needed
@@ -99,41 +99,48 @@ if st.button("📥 Load Data"):
         df_merged["sentiment_category"] = df_merged["avg_sentiment"].apply(label_sentiment)
         df_merged["salience_label"] = df_merged["avg_salience"].round(3).astype(str)
 
-        # === Altair Chart ===
-        base = alt.Chart(df_merged).encode(x=alt.X("date:T", title="Date"))
-
-        line = base.mark_line(color="steelblue").encode(
+        # === 📈 Chart 1: Stock Price Line ===
+        price_chart = alt.Chart(df_merged).mark_line(color="steelblue").encode(
+            x=alt.X("date:T", title="Date"),
             y=alt.Y("stock_price:Q", title="Stock Price"),
             tooltip=["date", "stock_price"]
+        ).properties(
+            title="📈 Stock Price Over Time",
+            height=300
+        )
+        st.altair_chart(price_chart, use_container_width=True)
+
+        # === 📊 Chart 2: Mentions + Labels ===
+        bar_base = alt.Chart(df_merged).encode(
+            x=alt.X("date:T", title="Date"),
+            y=alt.Y("total_mentions:Q", title="Mentions")
         )
 
-        bars = base.mark_bar(color="orange", opacity=0.7).encode(
-            y=alt.Y("total_mentions:Q", title="Mentions"),
-            tooltip=["total_mentions"]
-        )
+        bars = bar_base.mark_bar(color="orange", opacity=0.75)
 
-        salience_labels = base.mark_text(
-            align="center", baseline="bottom", dy=-15, fontSize=10, color="black"
+        salience_text = bar_base.mark_text(
+            dy=-15,
+            color="black",
+            fontSize=11
         ).encode(
-            y="total_mentions:Q",
             text="salience_label"
         )
 
-        sentiment_labels = base.mark_text(
-            align="center", baseline="bottom", dy=-30, fontSize=11, fontWeight="bold", color="gray"
+        sentiment_text = bar_base.mark_text(
+            dy=-30,
+            color="gray",
+            fontSize=12,
+            fontWeight="bold"
         ).encode(
-            y="total_mentions:Q",
             text="sentiment_category"
         )
 
-        final_chart = alt.layer(bars, line, salience_labels, sentiment_labels).resolve_scale(
-            y='independent'
-        ).properties(
-            title=f"{company_name}: Stock Price vs Mentions & Sentiment",
-            height=350
+        gdelt_chart = alt.layer(bars, salience_text, sentiment_text).properties(
+            title="📊 Mentions per Day with Salience and Sentiment",
+            height=300
         )
 
-        st.altair_chart(final_chart, use_container_width=True)
+        st.altair_chart(gdelt_chart, use_container_width=True)
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
