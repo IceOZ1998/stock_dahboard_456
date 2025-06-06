@@ -76,11 +76,10 @@ if st.button("🔍 Run Analysis"):
 
     if df_stock.empty:
         st.warning("⚠️ No stock data found for the selected date range.")
-        st.stop()
-
-    start_price = df_stock["Close"].iloc[0].item()
-    end_price = df_stock["Close"].iloc[-1].item()
-    trend = "📈 Up" if end_price > start_price else "📉 Down" if end_price < start_price else "➖ No change"
+    else:
+        start_price = df_stock["Close"].iloc[0].item()
+        end_price = df_stock["Close"].iloc[-1].item()
+        trend = "📈 Up" if end_price > start_price else "📉 Down" if end_price < start_price else "➖ No change"
 
     # === Load GDELT data ===
     try:
@@ -98,72 +97,58 @@ if st.button("🔍 Run Analysis"):
 
     if df_ceo.empty:
         st.warning("⚠️ No media data found for this CEO in the selected range.")
-        st.stop()
+    else:
+        # === Layout: side-by-side charts ===
+        col1, col2 = st.columns(2)
 
-    # === Layout: side-by-side charts ===
-    col1, col2 = st.columns(2)
+        # === Chart 1: Stock Price ===
+        with col1:
+            st.subheader("💰 Stock Closing Price")
+            st.line_chart(df_stock["Close"])
+            st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
 
-    # === Chart 1: Stock Price (fixed) ===
-    with col1:
-        st.subheader("💰 Stock Closing Price")
+        # === Chart 2: GDELT Media ===
+        with col2:
+            st.subheader("📰 Daily Media Mentions")
 
-        df_stock_chart = df_stock.reset_index()
-        df_stock_chart["date"] = pd.to_datetime(df_stock_chart["Date"].dt.date)
+            date_axis = alt.Axis(format='%Y-%m-%d', title="Date")
 
-        stock_chart = alt.Chart(df_stock_chart).mark_line(color="steelblue").encode(
-            x=alt.X("date:T", title="Date", axis=alt.Axis(format='%Y-%m-%d'), scale=alt.Scale(nice=False)),
-            y=alt.Y("Close:Q", title="Stock Price"),
-            tooltip=["date", "Close"]
-        ).properties(
-            height=300,
-            title="📈 Stock Closing Price"
-        )
+            base = alt.Chart(df_ceo).encode(x=alt.X("date:T", axis=date_axis))
 
-        st.altair_chart(stock_chart, use_container_width=True)
-        st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
+            bars = base.mark_bar(color="orange").encode(
+                y=alt.Y("total_mentions:Q", title="Mentions"),
+                tooltip=["date", "total_mentions"]
+            )
 
-    # === Chart 2: GDELT Media ===
-    with col2:
-        st.subheader("📰 Daily Media Mentions")
+            salience_labels = base.mark_text(
+                dy=-15,
+                fontSize=10,
+                color="black"
+            ).encode(
+                y="total_mentions:Q",
+                text="salience_label"
+            )
 
-        date_axis = alt.Axis(format='%Y-%m-%d', title="Date")
+            sentiment_labels = base.mark_text(
+                dy=-30,
+                fontSize=12,
+                fontWeight="bold",
+                color="gray"
+            ).encode(
+                y="total_mentions:Q",
+                text="sentiment_category"
+            )
 
-        base = alt.Chart(df_ceo).encode(x=alt.X("date:T", axis=date_axis, scale=alt.Scale(nice=False)))
+            combined_chart = alt.layer(bars, salience_labels, sentiment_labels).properties(
+                height=300,
+                title="📢 Mentions per Day (with Sentiment & Salience)"
+            )
 
-        bars = base.mark_bar(color="orange").encode(
-            y=alt.Y("total_mentions:Q", title="Mentions"),
-            tooltip=["date", "total_mentions"]
-        )
+            st.altair_chart(combined_chart, use_container_width=True)
 
-        salience_labels = base.mark_text(
-            dy=-15,
-            fontSize=10,
-            color="black"
-        ).encode(
-            y="total_mentions:Q",
-            text="salience_label"
-        )
-
-        sentiment_labels = base.mark_text(
-            dy=-30,
-            fontSize=12,
-            fontWeight="bold",
-            color="gray"
-        ).encode(
-            y="total_mentions:Q",
-            text="sentiment_category"
-        )
-
-        combined_chart = alt.layer(bars, salience_labels, sentiment_labels).properties(
-            height=300,
-            title="📢 Mentions per Day (with Sentiment & Salience)"
-        )
-
-        st.altair_chart(combined_chart, use_container_width=True)
-
-    # === Optional: show raw data
-    st.markdown("### 📄 Raw GDELT Data")
-    st.dataframe(df_ceo.style.format({
-        "avg_sentiment": "{:.2f}",
-        "avg_salience": "{:.2f}"
-    }))
+        # === Optional: show raw data
+        st.markdown("### 📄 Raw GDELT Data")
+        st.dataframe(df_ceo.style.format({
+            "avg_sentiment": "{:.2f}",
+            "avg_salience": "{:.2f}"
+        }))
