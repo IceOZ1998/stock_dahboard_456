@@ -83,7 +83,7 @@ def get_ceo_daily_stats(project_id, dataset, table, ceo_name, start_date, end_da
 
     df["sentiment_category"] = df["avg_sentiment"].apply(classify_sentiment)
     df["salience_label"] = "avgSalience: " + df["avg_salience"].round(3).astype(str)
-    df["date"] = pd.to_datetime(df["date"]).dt.date  # clean datetime format
+    df["date"] = pd.to_datetime(df["date"]).dt.strftime('%Y-%m-%d')  # Keep as string to avoid duplicate x-axis
     return df
 
 # === Main action ===
@@ -121,17 +121,8 @@ if st.button("🔍 Run Analysis"):
         # === Chart 1: Stock Price ===
         with col1:
             st.subheader("💰 Stock Closing Price")
-            df_stock.index = df_stock.index.date  # remove time from x-axis
-            stock_df = df_stock.reset_index()[["Date", "Close"]]
-            stock_chart = alt.Chart(stock_df).mark_line(point=True).encode(
-                x=alt.X("Date:T", title="Date", axis=alt.Axis(format="%Y-%m-%d", labelAngle=0)),
-                y=alt.Y("Close:Q", title="Price"),
-                tooltip=["Date", "Close"]
-            ).properties(
-                width=400,
-                height=300
-            )
-            st.altair_chart(stock_chart, use_container_width=False)
+            df_stock.index = df_stock.index.date  # just for visual consistency
+            st.line_chart(df_stock["Close"])
             st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
 
         # === Chart 2: GDELT Media ===
@@ -139,9 +130,7 @@ if st.button("🔍 Run Analysis"):
             st.subheader("📰 Daily Media Mentions")
 
             base = alt.Chart(df_ceo).encode(
-                x=alt.X("date:T", title="Date",
-                        axis=alt.Axis(format='%Y-%m-%d', labelAngle=0),
-                        scale=alt.Scale(bandPaddingInner=0.1))
+                x=alt.X("date:N", title="Date", axis=alt.Axis(labelAngle=0))
             )
 
             bars = base.mark_bar(color="orange").encode(
