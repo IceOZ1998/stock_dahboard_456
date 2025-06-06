@@ -1,48 +1,33 @@
 import streamlit as st
-from google.cloud import bigquery
 import pandas as pd
 import yfinance as yf
-from datetime import date
+from datetime import datetime
 
-# הגדרת מידע על מנכ"לים
-ceo_to_company = {
-    "Jensen Huang": ("NVIDIA", "NVDA"),
-    "Elon Musk": ("Tesla", "TSLA"),
-    "Tim Cook": ("Apple", "AAPL"),
-    "Sundar Pichai": ("Alphabet", "GOOGL"),
-    "Satya Nadella": ("Microsoft", "MSFT"),
-    "Mark Zuckerberg": ("Meta", "META"),
-    "Andy Jassy": ("Amazon", "AMZN")
-}
+# ניסיון ראשוני רק עבור Jensen Huang
+ceo_name = "Jensen Huang"
+company_name, ticker = "NVIDIA", "NVDA"
+start_date = datetime(2025, 4, 1)
+end_date = datetime(2025, 4, 3)
 
-st.set_page_config(page_title="CEO Media & Stocks", layout="wide")
-st.title("📊 Media & Stock Dashboard")
+st.set_page_config(page_title="Dashboard - ניסוי", layout="wide")
+st.title("📊 Media & Stock Dashboard (ניסוי ראשוני)")
 
-# בחירת מנכ"ל
-ceo_name = st.selectbox("בחר מנכ\"ל", list(ceo_to_company.keys()))
-company_name, ticker = ceo_to_company[ceo_name]
+st.markdown(f"**מנכ\"ל:** {ceo_name}  |  **חברה:** {company_name} ({ticker})")
+st.markdown(f"**טווח תאריכים:** {start_date.date()} עד {end_date.date()}")
 
-# בחירת טווח תאריכים
-col1, col2 = st.columns(2)
-with col1:
-    start_date = st.date_input("תאריך התחלה", date(2024, 12, 1))
-with col2:
-    end_date = st.date_input("תאריך סיום", date(2025, 3, 31))
-
-if start_date >= end_date:
-    st.error("❗ תאריך הסיום חייב להיות אחרי תאריך ההתחלה")
-else:
+# כפתור להרצת הניתוח
+if st.button("🔍 הפעל ניתוח"):
     # שליפת נתוני מניה
-    df_stock = yf.download(ticker, start=start_date, end=end_date.strftime("%Y-%m-%d"))
+    df_stock = yf.download(ticker, start=start_date, end=end_date + pd.Timedelta(days=1))
 
     if df_stock.empty:
-        st.warning("לא נמצאו נתוני מניה בטווח הנבחר")
+        st.warning("⚠️ לא נמצאו נתונים בטווח שנבחר")
     else:
-        start_price = df_stock["Close"].iloc[0]
-        end_price = df_stock["Close"].iloc[-1]
+        start_price = df_stock["Close"].iloc[0].item()
+        end_price = df_stock["Close"].iloc[-1].item()
         trend = "📈 עלייה" if end_price > start_price else "📉 ירידה" if end_price < start_price else "➖ ללא שינוי"
 
-        st.subheader(f"{company_name} ({ticker})")
-        st.write(f"🗓️ טווח תאריכים: {start_date} עד {end_date}")
+        st.subheader("📈 גרף סגירה יומית")
         st.line_chart(df_stock["Close"])
+
         st.markdown(f"**תנועת מחיר כוללת:** {trend} (מ־{start_price:.2f} ל־{end_price:.2f})")
