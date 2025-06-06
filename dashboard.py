@@ -84,8 +84,16 @@ if st.button("📥 Load Data"):
 
         # === Prepare and merge
         df_ceo["date"] = pd.to_datetime(df_ceo["date"])
-        df_merged = pd.merge(df_ceo, df_stock[["date", "Close"]], on="date", how="inner")
-        df_merged.rename(columns={"Close": "stock_price"}, inplace=True)
+
+        # Dynamically find the 'Close' column (case-insensitive)
+        close_col = [col for col in df_stock.columns if col.lower() == "close"]
+        if not close_col:
+            st.error("❌ Could not find 'Close' column in stock data.")
+            st.dataframe(df_stock.head())  # help debug
+            st.stop()
+
+        df_merged = pd.merge(df_ceo, df_stock[["date", close_col[0]]], on="date", how="inner")
+        df_merged.rename(columns={close_col[0]: "stock_price"}, inplace=True)
 
         # === Label sentiment and salience
         def label_sentiment(score):
