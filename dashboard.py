@@ -29,7 +29,9 @@ st.set_page_config(page_title="Media & Stock Dashboard", layout="wide")
 st.title("📊 Media & Stock Dashboard")
 
 # === UI: Select CEO and Dates ===
-ceo_name = st.selectbox("Select CEO", list(ceo_to_company.keys()))
+ceo_options = [f"{ceo} ({company})" for ceo, (company, _) in ceo_to_company.items()]
+selected_ceo_display = st.selectbox("Select CEO", ceo_options)
+ceo_name = selected_ceo_display.split(" (")[0]
 company_name, ticker = ceo_to_company[ceo_name]
 
 date_range = st.date_input("Select date range", value=(datetime(2025, 4, 1), datetime(2025, 4, 3)))
@@ -83,7 +85,7 @@ def get_ceo_daily_stats(project_id, dataset, table, ceo_name, start_date, end_da
 
     df["sentiment_category"] = df["avg_sentiment"].apply(classify_sentiment)
     df["salience_label"] = "avgSalience: " + df["avg_salience"].round(3).astype(str)
-    df["date"] = pd.to_datetime(df["date"]).dt.strftime('%Y-%m-%d')  # Keep as string to avoid duplicate x-axis
+    df["date"] = pd.to_datetime(df["date"]).dt.strftime('%Y-%m-%d')  # Avoid datetime-level grouping
     return df
 
 # === Main action ===
@@ -121,7 +123,7 @@ if st.button("🔍 Run Analysis"):
         # === Chart 1: Stock Price ===
         with col1:
             st.subheader("💰 Stock Closing Price")
-            df_stock.index = df_stock.index.date  # just for visual consistency
+            df_stock.index = df_stock.index.date
             st.line_chart(df_stock["Close"])
             st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
 
