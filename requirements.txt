@@ -4,3 +4,5 @@ pandas
 yfinance
 google-cloud-bigquery
 db-dtypes
+streamlit
+altair
