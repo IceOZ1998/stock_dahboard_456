@@ -1,10 +1,18 @@
 import streamlit as st
+import os
+import json
+from datetime import datetime
 import pandas as pd
 import yfinance as yf
-from datetime import datetime
 from google.cloud import bigquery
 
-# === פרטים קבועים לדשבורד הניסיוני ===
+# === טעינת ההרשאות מתוך secrets ב-Streamlit Cloud ===
+with open("/tmp/service_account.json", "w") as f:
+    json.dump(st.secrets["google_service_account"], f)
+
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/service_account.json"
+
+# === פרטי ניתוח קבועים לשלב הניסוי ===
 ceo_name = "Jensen Huang"
 company_name, ticker = "NVIDIA", "NVDA"
 start_date = datetime(2025, 4, 1)
@@ -13,13 +21,14 @@ project_id = "bigdata456"
 dataset = "Big_Data_456_data"
 table = "ceo_articles_nvidia_test"
 
-st.set_page_config(page_title="Dashboard - ניסוי", layout="wide")
+# === הגדרות עיצוב ===
+st.set_page_config(page_title="CEO Media & Stock Dashboard", layout="wide")
 st.title("📊 Media & Stock Dashboard (ניסוי על Jensen Huang)")
 
 st.markdown(f"**מנכ\"ל:** {ceo_name}  |  **חברה:** {company_name} ({ticker})")
 st.markdown(f"**טווח תאריכים:** {start_date.date()} עד {end_date.date()}")
 
-# === פונקציה לשליפת נתוני GDELT היומיים ===
+# === פונקציה לשליפת נתונים תקשורתיים מהטבלה ===
 def get_ceo_daily_stats(project_id, dataset, table, ceo_name, start_date, end_date):
     client = bigquery.Client(project=project_id)
     
@@ -59,12 +68,11 @@ def get_ceo_daily_stats(project_id, dataset, table, ceo_name, start_date, end_da
     result["sentiment_category"] = result["avg_sentiment"].apply(classify_sentiment)
     return result
 
-# כפתור להרצת הניתוח
+# === כפתור להרצת הניתוח ===
 if st.button("🔍 הפעל ניתוח"):
-    
-    # === שליפת נתוני מניה ===
+    # === שליפת נתוני מניה מ-yfinance ===
     df_stock = yf.download(ticker, start=start_date, end=end_date + pd.Timedelta(days=1))
-    
+
     if df_stock.empty:
         st.warning("⚠️ לא נמצאו נתוני מניה בטווח שנבחר")
     else:
@@ -76,7 +84,7 @@ if st.button("🔍 הפעל ניתוח"):
         st.line_chart(df_stock["Close"])
         st.markdown(f"**תנועת מחיר כוללת:** {trend} (מ־{start_price:.2f} ל־{end_price:.2f})")
 
-    # === שליפת נתוני GDELT ===
+    # === שליפת נתוני GDELT מהטבלה ===
     df_ceo_stats = get_ceo_daily_stats(
         project_id=project_id,
         dataset=dataset,
