@@ -46,7 +46,7 @@ st.markdown(f"**Date range:** {start_date} to {end_date}")
 # === GDELT BigQuery table ===
 project_id = "bigdata456"
 dataset = "Big_Data_456_data"
-table = "ceo_co_articals"
+table = "ceo_articles_extended"
 
 # === Query GDELT data from BigQuery ===
 def get_daily_stats(project_id, dataset, table, mids, start_date, end_date):
