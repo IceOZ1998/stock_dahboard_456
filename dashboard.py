@@ -90,6 +90,16 @@ def get_daily_stats(project_id, dataset, table, mids, start_date, end_date):
     df["date"] = pd.to_datetime(df["date"]).dt.strftime('%Y-%m-%d')
     return df
 
+def sentiment_label(score):
+    if pd.isna(score):
+        return "Neutral"
+    elif score > 0.2:
+        return "Positive"
+    elif score < -0.2:
+        return "Negative"
+    else:
+        return "Neutral"
+
 # === Main action ===
 if st.button("🔍 Run Analysis"):
     # === Load stock data ===
@@ -131,22 +141,23 @@ if st.button("🔍 Run Analysis"):
         avg_mentions = df_ceo["total_mentions"].mean()
         avg_sentiment = df_ceo["avg_sentiment"].mean()
 
-        # הפקת מסקנה מילולית פשוטה
-        conclusion = ""
-        if trend == "📈 Up":
-            if avg_sentiment > 0 and avg_mentions > 1000:
-                conclusion = "המגמה החיובית במחיר המניה מתואמת עם סנטימנט חיובי וכמות כתבות גבוהה."
-            else:
-                conclusion = "למרות מגמת העלייה במחיר, סנטימנט וכמות הכתבות אינם חזקים במיוחד."
-        elif trend == "📉 Down":
-            if avg_sentiment < 0 and avg_mentions > 1000:
-                conclusion = "ירידת המחיר מתואמת עם סנטימנט שלילי וכמות כתבות גבוהה."
-            else:
-                conclusion = "למרות ירידת המחיר, הסנטימנט או כמות הכתבות אינם ברורים."
-        else:
-            conclusion = "אין שינוי משמעותי במחיר המניה."
+        # הפקת מסקנה מילולית מתואמת לתג הסנטימנט בגרף
+        sentiment_tag = sentiment_label(avg_sentiment)
 
-        st.markdown("### 📝 מסקנת קורלציה:")
+        if trend == "📈 Up":
+            if sentiment_tag == "Positive" and avg_mentions > 1000:
+                conclusion = "The positive stock trend aligns with positive sentiment and high media coverage."
+            else:
+                conclusion = "Despite the upward stock trend, sentiment or media coverage is not particularly strong."
+        elif trend == "📉 Down":
+            if sentiment_tag == "Negative" and avg_mentions > 1000:
+                conclusion = "The stock price decline correlates with negative sentiment and high media coverage."
+            else:
+                conclusion = "Despite the downward stock trend, sentiment or media coverage is unclear."
+        else:
+            conclusion = "There is no significant change in the stock price."
+
+        st.markdown("### 📝 Correlation Conclusion:")
         st.markdown(conclusion)
 
         # המשך הצגת גרפים וטבלה כפי שבקוד המקורי
