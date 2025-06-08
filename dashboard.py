@@ -119,6 +119,37 @@ if st.button("🔍 Run Analysis"):
     if df_ceo.empty:
         st.warning("⚠️ No media data found for this CEO or company in the selected range.")
     else:
+        # ====== Correlation analysis block ======
+        df_stock_reset = df_stock.reset_index()
+        df_stock_reset["date"] = df_stock_reset["Date"].dt.strftime('%Y-%m-%d')
+
+        df_merge = pd.merge(df_stock_reset, df_ceo, on="date", how="inner")
+
+        corr_price_mentions = df_merge["Close"].corr(df_merge["total_mentions"])
+        corr_price_sentiment = df_merge["Close"].corr(df_merge["avg_sentiment"])
+
+        def correlation_conclusion(corr, var_name):
+            threshold = 0.3
+            if corr >= threshold:
+                return f"קיים קשר חיובי משמעותי בין מחיר המניה ל-{var_name}. כלומר, עלייה ב-{var_name} נוטה להתלוות לעלייה במחיר."
+            elif corr <= -threshold:
+                return f"קיים קשר שלילי משמעותי בין מחיר המניה ל-{var_name}. כלומר, עלייה ב-{var_name} נוטה להתלוות לירידה במחיר."
+            else:
+                return f"לא נמצא קשר ליניארי משמעותי בין מחיר המניה ל-{var_name}."
+
+        conclusion_mentions = correlation_conclusion(corr_price_mentions, "כמות הכתבות")
+        conclusion_sentiment = correlation_conclusion(corr_price_sentiment, "הסנטימנט הממוצע")
+
+        # ====== Display correlation results ======
+        st.markdown("### 📊 ניתוח קורלציות בין מחיר מניה לנתוני מדיה")
+        st.markdown(f"- קורלציה בין מחיר מניה לכמות הכתבות: **{corr_price_mentions:.3f}**")
+        st.markdown(f"- קורלציה בין מחיר מניה לסנטימנט הממוצע: **{corr_price_sentiment:.3f}**")
+
+        st.markdown("### 📝 מסקנות")
+        st.markdown(f"- {conclusion_mentions}")
+        st.markdown(f"- {conclusion_sentiment}")
+
+        # ====== Existing visualization code ======
         col1, col2 = st.columns([1, 1])
 
         with col1:
