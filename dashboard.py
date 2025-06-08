@@ -75,11 +75,16 @@ def get_daily_stats(project_id, dataset, table, mids, start_date, end_date):
 
     df = client.query(query, job_config=job_config).result().to_dataframe()
 
+    # לפי הממצאים - תיוג הסנטימנט בגרף ובמסקנה
     def classify_sentiment(score):
         if pd.isna(score):
             return "Neutral"
         elif score > 0.2:
             return "Positive"
+        elif score > 0 and score <= 0.2:
+            return "Slightly Positive"
+        elif score >= -0.2 and score <= 0:
+            return "Slightly Negative"
         elif score < -0.2:
             return "Negative"
         else:
@@ -95,6 +100,10 @@ def sentiment_label(score):
         return "Neutral"
     elif score > 0.2:
         return "Positive"
+    elif score > 0 and score <= 0.2:
+        return "Slightly Positive"
+    elif score >= -0.2 and score <= 0:
+        return "Slightly Negative"
     elif score < -0.2:
         return "Negative"
     else:
@@ -145,12 +154,12 @@ if st.button("🔍 Run Analysis"):
         sentiment_tag = sentiment_label(avg_sentiment)
 
         if trend == "📈 Up":
-            if sentiment_tag == "Positive" and avg_mentions > 1000:
+            if sentiment_tag in ["Positive", "Slightly Positive"] and avg_mentions > 1000:
                 conclusion = "The positive stock trend aligns with positive sentiment and high media coverage."
             else:
                 conclusion = "Despite the upward stock trend, sentiment or media coverage is not particularly strong."
         elif trend == "📉 Down":
-            if sentiment_tag == "Negative" and avg_mentions > 1000:
+            if sentiment_tag in ["Negative", "Slightly Negative"] and avg_mentions > 1000:
                 conclusion = "The stock price decline correlates with negative sentiment and high media coverage."
             else:
                 conclusion = "Despite the downward stock trend, sentiment or media coverage is unclear."
