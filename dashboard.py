@@ -75,7 +75,7 @@ def get_daily_stats(project_id, dataset, table, mids, start_date, end_date):
 
     df = client.query(query, job_config=job_config).result().to_dataframe()
 
-    # לפי הממצאים - תיוג הסנטימנט בגרף ובמסקנה
+    # חלוקת סנטימנט מורחבת
     def classify_sentiment(score):
         if pd.isna(score):
             return "Neutral"
@@ -220,4 +220,4 @@ if st.button("🔍 Run Analysis"):
         st.dataframe(df_ceo.style.format({
             "avg_sentiment": "{:.2f}",
             "avg_salience": "{:.2f}"
-        }))
+        }), height=500)  # הוספתי גובה מוגדל לטבלה
