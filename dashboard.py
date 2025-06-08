@@ -100,7 +100,12 @@ if st.button("🔍 Run Analysis"):
     else:
         start_price = df_stock["Close"].iloc[0].item()
         end_price = df_stock["Close"].iloc[-1].item()
-        trend = "📈 Up" if end_price > start_price else "📉 Down" if end_price < start_price else "➖ No change"
+        if end_price > start_price:
+            trend = "📈 Up"
+        elif end_price < start_price:
+            trend = "📉 Down"
+        else:
+            trend = "➖ No change"
 
     # === Load GDELT data ===
     try:
@@ -119,50 +124,38 @@ if st.button("🔍 Run Analysis"):
     if df_ceo.empty:
         st.warning("⚠️ No media data found for this CEO or company in the selected range.")
     else:
-        # === Prepare data for correlation ===
-        df_stock_reset = df_stock.reset_index()
-        df_stock_reset["date"] = df_stock_reset["Date"].dt.strftime('%Y-%m-%d')
+        # הצגת מגמת מחיר
+        st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
 
-        # Remove duplicate dates if any
-        df_stock_reset = df_stock_reset.drop_duplicates(subset=["date"])
-        df_ceo = df_ceo.drop_duplicates(subset=["date"])
+        # ממוצע כמות הכתבות והסנטימנט לאורך התקופה
+        avg_mentions = df_ceo["total_mentions"].mean()
+        avg_sentiment = df_ceo["avg_sentiment"].mean()
 
-        df_merge = pd.merge(df_stock_reset, df_ceo, on="date", how="inner")
-
-        # === Calculate correlations ===
-        corr_price_mentions = df_merge["Close"].corr(df_merge["total_mentions"])
-        corr_price_sentiment = df_merge["Close"].corr(df_merge["avg_sentiment"])
-
-        # === Interpret correlations ===
-        def correlation_conclusion(corr, var_name):
-            threshold = 0.3
-            if corr >= threshold:
-                return f"קיים קשר חיובי משמעותי בין מחיר המניה ל-{var_name}. כלומר, עלייה ב-{var_name} נוטה להתלוות לעלייה במחיר."
-            elif corr <= -threshold:
-                return f"קיים קשר שלילי משמעותי בין מחיר המניה ל-{var_name}. כלומר, עלייה ב-{var_name} נוטה להתלוות לירידה במחיר."
+        # הפקת מסקנה מילולית פשוטה
+        conclusion = ""
+        if trend == "📈 Up":
+            if avg_sentiment > 0 and avg_mentions > 1000:
+                conclusion = "המגמה החיובית במחיר המניה מתואמת עם סנטימנט חיובי וכמות כתבות גבוהה."
             else:
-                return f"לא נמצא קשר ליניארי משמעותי בין מחיר המניה ל-{var_name}."
+                conclusion = "למרות מגמת העלייה במחיר, סנטימנט וכמות הכתבות אינם חזקים במיוחד."
+        elif trend == "📉 Down":
+            if avg_sentiment < 0 and avg_mentions > 1000:
+                conclusion = "ירידת המחיר מתואמת עם סנטימנט שלילי וכמות כתבות גבוהה."
+            else:
+                conclusion = "למרות ירידת המחיר, הסנטימנט או כמות הכתבות אינם ברורים."
+        else:
+            conclusion = "אין שינוי משמעותי במחיר המניה."
 
-        conclusion_mentions = correlation_conclusion(corr_price_mentions, "כמות הכתבות")
-        conclusion_sentiment = correlation_conclusion(corr_price_sentiment, "הסנטימנט הממוצע")
+        st.markdown("### 📝 מסקנת קורלציה:")
+        st.markdown(conclusion)
 
-        # === Display correlation results ===
-        st.markdown("### 📊 ניתוח קורלציות בין מחיר מניה לנתוני מדיה")
-        st.markdown(f"- קורלציה בין מחיר מניה לכמות הכתבות: **{corr_price_mentions:.3f}**")
-        st.markdown(f"- קורלציה בין מחיר מניה לסנטימנט הממוצע: **{corr_price_sentiment:.3f}**")
-
-        st.markdown("### 📝 מסקנות")
-        st.markdown(f"- {conclusion_mentions}")
-        st.markdown(f"- {conclusion_sentiment}")
-
-        # === Visualization ===
+        # המשך הצגת גרפים וטבלה כפי שבקוד המקורי
         col1, col2 = st.columns([1, 1])
 
         with col1:
             st.subheader("💰 Stock Closing Price")
             df_stock.index = df_stock.index.date
             st.line_chart(df_stock["Close"])
-            st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
 
         with col2:
             st.subheader("📰 Daily Media Mentions")
