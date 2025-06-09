@@ -6,7 +6,6 @@ import pandas as pd
 import yfinance as yf
 from google.cloud import bigquery
 import altair as alt
-from PIL import Image
 
 # === Page Config & Styling ===
 st.set_page_config(page_title="EchoMarket - Media & Stock Dashboard", layout="wide")
@@ -24,10 +23,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
-# === Logo ===
-logo = Image.open("/mnt/data/2f6afa2c-465f-4363-a4fd-f4bdc0e3f1d3.png")
-st.image(logo, width=180)
 
 # === Title ===
 st.title("📊 EchoMarket - Media & Stock Dashboard")
@@ -67,7 +62,6 @@ project_id = "bigdata456"
 dataset = "Big_Data_456_data"
 table = "ceo_articles_extended"
 
-# === Query Function ===
 def get_daily_stats(project_id, dataset, table, mids, start_date, end_date):
     client = bigquery.Client(project=project_id)
     query = f"""
@@ -121,7 +115,6 @@ def sentiment_label(score):
     else:
         return "Negative"
 
-# === Run Analysis ===
 if st.button("🔍 Run Analysis"):
     df_stock = yf.download(ticker, start=start_date, end=end_date + pd.Timedelta(days=1))
     if df_stock.empty:
