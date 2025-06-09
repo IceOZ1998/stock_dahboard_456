@@ -117,7 +117,14 @@ if st.button("🔍 Run Analysis"):
     else:
         start_price = df_stock["Close"].iloc[0].item()
         end_price = df_stock["Close"].iloc[-1].item()
-        trend = "📈 Up" if end_price > start_price else "📉 Down" if end_price < start_price else "➖ No change"
+        price_change_pct = ((end_price - start_price) / start_price) * 100
+
+        if price_change_pct > 2:
+            trend = "📈 Up"
+        elif price_change_pct < -2:
+            trend = "📉 Down"
+        else:
+            trend = "➖ Neutral trend"
 
     try:
         df_ceo = get_daily_stats(project_id, dataset, table, [ceo_mid, org_mid], start_date, end_date)
@@ -128,7 +135,8 @@ if st.button("🔍 Run Analysis"):
     if df_ceo.empty:
         st.warning("⚠️ No media data found for this CEO or company in the selected range.")
     else:
-        st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
+        st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f}, change: {price_change_pct:.2f}%)")
+
         avg_articles = df_ceo["total_articles"].mean()
         avg_sentiment = df_ceo["avg_sentiment"].mean()
         sentiment_tag = sentiment_label(avg_sentiment)
@@ -153,7 +161,7 @@ if st.button("🔍 Run Analysis"):
             else:
                 conclusion = "The stock is trending down but sentiment does not fully support this trend."
         else:
-            conclusion = "There is no significant price change, but media coverage is notable." if has_significant_coverage else "There is no significant price change or media coverage."
+            conclusion = "The stock shows a neutral trend and no significant price movement." if has_significant_coverage else "There is no significant price change or media coverage."
 
         st.markdown("### 📝 Correlation Conclusion:")
         st.markdown(conclusion)
