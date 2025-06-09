@@ -57,7 +57,7 @@ def get_daily_stats(project_id, dataset, table, mids, start_date, end_date):
       date,
       AVG(sentiment_score) AS avg_sentiment,
       SUM(numMentions) AS total_mentions,
-      COUNT(DISTINCT url) AS total_articles,
+      COUNT(DISTINCT url) AS total_articles,  -- מספר כתבות ייחודיות לפי URL
       AVG(avgSalience) AS avg_salience
     FROM `{project_id}.{dataset}.{table}`
     WHERE mid IN UNNEST(@mid_list)
@@ -76,7 +76,6 @@ def get_daily_stats(project_id, dataset, table, mids, start_date, end_date):
 
     df = client.query(query, job_config=job_config).result().to_dataframe()
 
-    # לפי הממצאים - תיוג הסנטימנט בגרף ובמסקנה
     def classify_sentiment(score):
         if pd.isna(score):
             return "Neutral"
@@ -148,23 +147,35 @@ if st.button("🔍 Run Analysis"):
         st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
 
         # ממוצע כמות הכתבות והסנטימנט לאורך התקופה
-        avg_mentions = df_ceo["total_mentions"].mean()
+        avg_articles_per_day = df_ceo["total_articles"].mean()
         avg_sentiment = df_ceo["avg_sentiment"].mean()
-        avg_articles = df_ceo["total_articles"].mean()
 
-        # הפקת מסקנה מילולית מתואמת לתג הסנטימנט בגרף וסף כיסוי 5 כתבות יומי
+        # סף מינימום לכתבות ליום להגדיר כמשתנה נוח לשינוי
+        coverage_threshold = 5
+
+        # הפקת מסקנה מילולית מתואמת לתג הסנטימנט ולכיסוי המדיה
         sentiment_tag = sentiment_label(avg_sentiment)
 
         if trend == "📈 Up":
-            if sentiment_tag in ["Positive", "Slightly Positive"] and avg_articles >= 5:
+            if sentiment_tag in ["Positive", "Slightly Positive"] and avg_articles_per_day > coverage_threshold:
                 conclusion = "The positive stock trend aligns with positive sentiment and sufficient media coverage."
+            elif sentiment_tag in ["Positive", "Slightly Positive"]:
+                conclusion = "The stock is trending up with positive sentiment, but media coverage is relatively low."
+            elif avg_articles_per_day > coverage_threshold:
+                conclusion = "The stock price is increasing, but sentiment is not strongly positive despite sufficient media coverage."
             else:
-                conclusion = "Despite the upward stock trend, sentiment or media coverage is not particularly strong."
+                conclusion = "The stock price is rising, but sentiment and media coverage are both weak."
+
         elif trend == "📉 Down":
-            if sentiment_tag in ["Negative", "Slightly Negative"] and avg_articles >= 5:
+            if sentiment_tag in ["Negative", "Slightly Negative"] and avg_articles_per_day > coverage_threshold:
                 conclusion = "The stock price decline correlates with negative sentiment and sufficient media coverage."
+            elif sentiment_tag in ["Negative", "Slightly Negative"]:
+                conclusion = "The stock is trending down with negative sentiment, but media coverage is relatively low."
+            elif avg_articles_per_day > coverage_threshold:
+                conclusion = "The stock price is falling, but sentiment is not strongly negative despite sufficient media coverage."
             else:
-                conclusion = "Despite the downward stock trend, sentiment or media coverage is unclear."
+                conclusion = "The stock price is declining, but sentiment and media coverage are both weak."
+
         else:
             conclusion = "There is no significant change in the stock price."
 
