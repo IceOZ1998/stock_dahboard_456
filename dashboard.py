@@ -55,14 +55,14 @@ def get_daily_stats(project_id, dataset, table, mids, start_date, end_date):
     query = f"""
     SELECT
       date,
-      AVG(sentiment_score) AS avg_sentiment,
-      SUM(numMentions) AS total_mentions,
-      AVG(avgSalience) AS avg_salience
+      mid,
+      url,
+      sentiment_score,
+      numMentions,
+      avgSalience
     FROM `{project_id}.{dataset}.{table}`
     WHERE mid IN UNNEST(@mid_list)
       AND date BETWEEN @start_date AND @end_date
-    GROUP BY date
-    ORDER BY date
     """
 
     job_config = bigquery.QueryJobConfig(
@@ -75,34 +75,46 @@ def get_daily_stats(project_id, dataset, table, mids, start_date, end_date):
 
     df = client.query(query, job_config=job_config).result().to_dataframe()
 
-    # חלוקת סנטימנט מורחבת
+    # ספירת כתבות ייחודיות לפי תאריך (URL ייחודי מכל ה-MIDs ביחד)
+    unique_articles_per_date = df.groupby("date")["url"].nunique().reset_index().rename(columns={"url": "unique_articles"})
+
+    # חישוב ממוצעים וסכומים לפי תאריך
+    aggregated = df.groupby("date").agg(
+        avg_sentiment=("sentiment_score", "mean"),
+        total_mentions=("numMentions", "sum"),
+        avg_salience=("avgSalience", "mean"),
+    ).reset_index()
+
+    # מיזוג הנתונים
+    df_final = pd.merge(aggregated, unique_articles_per_date, on="date", how="left")
+
     def classify_sentiment(score):
         if pd.isna(score):
             return "Neutral"
         elif score > 0.2:
             return "Positive"
-        elif score > 0 and score <= 0.2:
+        elif 0 < score <= 0.2:
             return "Slightly Positive"
-        elif score >= -0.2 and score <= 0:
+        elif -0.2 <= score <= 0:
             return "Slightly Negative"
         elif score < -0.2:
             return "Negative"
         else:
             return "Neutral"
 
-    df["sentiment_category"] = df["avg_sentiment"].apply(classify_sentiment)
-    df["salience_label"] = "avgSalience: " + df["avg_salience"].round(3).astype(str)
-    df["date"] = pd.to_datetime(df["date"]).dt.strftime('%Y-%m-%d')
-    return df
+    df_final["sentiment_category"] = df_final["avg_sentiment"].apply(classify_sentiment)
+    df_final["salience_label"] = "avgSalience: " + df_final["avg_salience"].round(3).astype(str)
+    df_final["date"] = pd.to_datetime(df_final["date"]).dt.strftime('%Y-%m-%d')
+    return df_final
 
 def sentiment_label(score):
     if pd.isna(score):
         return "Neutral"
     elif score > 0.2:
         return "Positive"
-    elif score > 0 and score <= 0.2:
+    elif 0 < score <= 0.2:
         return "Slightly Positive"
-    elif score >= -0.2 and score <= 0:
+    elif -0.2 <= score <= 0:
         return "Slightly Negative"
     elif score < -0.2:
         return "Negative"
@@ -146,7 +158,7 @@ if st.button("🔍 Run Analysis"):
         # הצגת מגמת מחיר
         st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
 
-        # ממוצע כמות הכתבות והסנטימנט לאורך התקופה
+        # ממוצע כמות הכתבות, הסנטימנט לאורך התקופה
         avg_mentions = df_ceo["total_mentions"].mean()
         avg_sentiment = df_ceo["avg_sentiment"].mean()
 
@@ -185,8 +197,8 @@ if st.button("🔍 Run Analysis"):
             )
 
             bars = base.mark_bar(color="orange").encode(
-                y=alt.Y("total_mentions:Q", title="Mentions"),
-                tooltip=["date", "total_mentions"]
+                y=alt.Y("unique_articles:Q", title="Unique Articles"),  # מספר הכתבות בגרף
+                tooltip=["date", "unique_articles", "total_mentions", "sentiment_category", "salience_label"]
             )
 
             salience_labels = base.mark_text(
@@ -194,7 +206,7 @@ if st.button("🔍 Run Analysis"):
                 fontSize=10,
                 color="black"
             ).encode(
-                y="total_mentions:Q",
+                y="unique_articles:Q",
                 text="salience_label"
             )
 
@@ -204,14 +216,14 @@ if st.button("🔍 Run Analysis"):
                 fontWeight="bold",
                 color="gray"
             ).encode(
-                y="total_mentions:Q",
+                y="unique_articles:Q",
                 text="sentiment_category"
             )
 
             combined_chart = alt.layer(bars, salience_labels, sentiment_labels).properties(
                 height=300,
-                width=400,
-                title="📢 Mentions per Day (with Sentiment & Salience)"
+                width=450,
+                title="📢 Unique Articles per Day (with Sentiment & Salience)"
             )
 
             st.altair_chart(combined_chart, use_container_width=False)
@@ -220,4 +232,4 @@ if st.button("🔍 Run Analysis"):
         st.dataframe(df_ceo.style.format({
             "avg_sentiment": "{:.2f}",
             "avg_salience": "{:.2f}"
-        }), height=500)  # הוספתי גובה מוגדל לטבלה
+        }))
