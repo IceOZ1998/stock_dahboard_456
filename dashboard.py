@@ -26,7 +26,7 @@ ceo_mapping = {
 
 # === Dashboard layout ===
 st.set_page_config(page_title="Media & Stock Dashboard", layout="wide")
-st.title("\ud83d\udcca Media & Stock Dashboard")
+st.markdown("# \ud83d\udcca Media & Stock Dashboard")
 
 # === UI: Select CEO and Dates ===
 ceo_options = [f"{ceo} ({data['company']})" for ceo, data in ceo_mapping.items()]
