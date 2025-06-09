@@ -1,7 +1,7 @@
 import os
 import json
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import yfinance as yf
 from google.cloud import bigquery
@@ -38,13 +38,14 @@ company_name, ticker = company_info["company"], company_info["ticker"]
 ceo_mid, org_mid = company_info["ceo_mid"], company_info["org_mid"]
 
 # === Require user to choose date range ===
-date_range = st.date_input("Select date range", value=None)
+today = datetime.today().date()
+date_range = st.date_input("Select date range", value=(today, today))
 
-if isinstance(date_range, tuple) and len(date_range) == 2:
-    start_date, end_date = date_range
-else:
-    st.warning("🗓️ Please select a valid start and end date to continue.")
+if not isinstance(date_range, tuple) or len(date_range) != 2 or date_range[0] == date_range[1]:
+    st.warning("🗓️ Please select a valid date range (two different dates).")
     st.stop()
+
+start_date, end_date = date_range
 
 st.markdown(f"**CEO:** {ceo_name}  |  **Company:** {company_name} ({ticker})")
 st.markdown(f"**Date range:** {start_date} to {end_date}")
@@ -54,7 +55,6 @@ project_id = "bigdata456"
 dataset = "Big_Data_456_data"
 table = "ceo_articles_extended"
 
-# === Query function ===
 def get_daily_stats(project_id, dataset, table, mids, start_date, end_date):
     client = bigquery.Client(project=project_id)
     query = f"""
