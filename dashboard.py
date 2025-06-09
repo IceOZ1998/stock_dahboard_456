@@ -7,28 +7,8 @@ import yfinance as yf
 from google.cloud import bigquery
 import altair as alt
 
-# === Page Config ===
+# === Page config ===
 st.set_page_config(page_title="EchoMarket - Media & Stock Dashboard", layout="wide")
-
-# === Dark Mode Toggle ===
-dark_mode = st.sidebar.toggle("🌙 Dark Mode", value=False)
-
-if dark_mode:
-    st.markdown(
-        """
-        <style>
-            body {
-                background-color: #1e1e1e;
-                color: #ffffff;
-            }
-            .stApp {
-                background-color: #1e1e1e;
-                color: #ffffff;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
 
 # === Title ===
 st.title("📊 EchoMarket - Media & Stock Dashboard")
@@ -38,7 +18,7 @@ with open("/tmp/service_account.json", "w") as f:
     f.write(st.secrets["google_service_account"]["json"])
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/service_account.json"
 
-# === CEO to Company Mapping (includes MIDs) ===
+# === CEO to Company Mapping ===
 ceo_mapping = {
     "Jensen Huang": {"company": "NVIDIA", "ticker": "NVDA", "ceo_mid": "/m/06n774", "org_mid": "/m/09rh_"},
     "Elon Musk": {"company": "Tesla", "ticker": "TSLA", "ceo_mid": "/m/03nzf1", "org_mid": "/m/0dr90d"},
@@ -49,7 +29,7 @@ ceo_mapping = {
     "Andy Jassy": {"company": "Amazon", "ticker": "AMZN", "ceo_mid": "/g/11f15hl9r0", "org_mid": "/m/0mgkg"}
 }
 
-# === UI: Select CEO and Dates ===
+# === UI: Select CEO ===
 ceo_options = [f"{ceo} ({data['company']})" for ceo, data in ceo_mapping.items()]
 selected_ceo_display = st.selectbox("Select CEO", ceo_options)
 ceo_name = selected_ceo_display.split(" (")[0]
@@ -57,22 +37,24 @@ company_info = ceo_mapping[ceo_name]
 company_name, ticker = company_info["company"], company_info["ticker"]
 ceo_mid, org_mid = company_info["ceo_mid"], company_info["org_mid"]
 
-# === Require Date Input ===
-date_range = st.date_input("Select date range")
-if not date_range or len(date_range) != 2:
-    st.warning("⏳ Please select a valid start and end date to continue.")
-    st.stop()
+# === Require user to choose date range ===
+date_range = st.date_input("Select date range", value=None)
 
-start_date, end_date = date_range
+if isinstance(date_range, tuple) and len(date_range) == 2:
+    start_date, end_date = date_range
+else:
+    st.warning("🗓️ Please select a valid start and end date to continue.")
+    st.stop()
 
 st.markdown(f"**CEO:** {ceo_name}  |  **Company:** {company_name} ({ticker})")
 st.markdown(f"**Date range:** {start_date} to {end_date}")
 
-# === GDELT BigQuery table ===
+# === BigQuery Info ===
 project_id = "bigdata456"
 dataset = "Big_Data_456_data"
 table = "ceo_articles_extended"
 
+# === Query function ===
 def get_daily_stats(project_id, dataset, table, mids, start_date, end_date):
     client = bigquery.Client(project=project_id)
     query = f"""
@@ -129,6 +111,7 @@ def sentiment_label(score):
 # === Run Analysis ===
 if st.button("🔍 Run Analysis"):
     df_stock = yf.download(ticker, start=start_date, end=end_date + pd.Timedelta(days=1))
+
     if df_stock.empty:
         st.warning("⚠️ No stock data found for the selected date range.")
     else:
@@ -146,7 +129,6 @@ if st.button("🔍 Run Analysis"):
         st.warning("⚠️ No media data found for this CEO or company in the selected range.")
     else:
         st.markdown(f"**Overall price trend:** {trend} (from {start_price:.2f} to {end_price:.2f})")
-
         avg_articles = df_ceo["total_articles"].mean()
         avg_sentiment = df_ceo["avg_sentiment"].mean()
         sentiment_tag = sentiment_label(avg_sentiment)
@@ -177,12 +159,10 @@ if st.button("🔍 Run Analysis"):
         st.markdown(conclusion)
 
         col1, col2 = st.columns([1, 1])
-
         with col1:
             st.subheader("💰 Stock Closing Price")
             df_stock.index = df_stock.index.date
             st.line_chart(df_stock["Close"])
-
         with col2:
             st.subheader("📰 Daily Media Mentions")
             base = alt.Chart(df_ceo).encode(x=alt.X("date:N", title="Date", axis=alt.Axis(labelAngle=0)))
