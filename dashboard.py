@@ -7,22 +7,28 @@ import yfinance as yf
 from google.cloud import bigquery
 import altair as alt
 
-# === Page Config & Styling ===
+# === Page Config ===
 st.set_page_config(page_title="EchoMarket - Media & Stock Dashboard", layout="wide")
-st.markdown(
-    """
-    <style>
-        body {
-            background-color: #fdf8f2;
-            color: #000000;
-        }
-        .stApp {
-            background-color: #fdf8f2;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+
+# === Dark Mode Toggle ===
+dark_mode = st.sidebar.toggle("🌙 Dark Mode", value=False)
+
+if dark_mode:
+    st.markdown(
+        """
+        <style>
+            body {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            .stApp {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
 # === Title ===
 st.title("📊 EchoMarket - Media & Stock Dashboard")
@@ -51,7 +57,12 @@ company_info = ceo_mapping[ceo_name]
 company_name, ticker = company_info["company"], company_info["ticker"]
 ceo_mid, org_mid = company_info["ceo_mid"], company_info["org_mid"]
 
-date_range = st.date_input("Select date range", value=(datetime(2025, 4, 1), datetime(2025, 4, 3)))
+# === Require Date Input ===
+date_range = st.date_input("Select date range")
+if not date_range or len(date_range) != 2:
+    st.warning("⏳ Please select a valid start and end date to continue.")
+    st.stop()
+
 start_date, end_date = date_range
 
 st.markdown(f"**CEO:** {ceo_name}  |  **Company:** {company_name} ({ticker})")
@@ -115,6 +126,7 @@ def sentiment_label(score):
     else:
         return "Negative"
 
+# === Run Analysis ===
 if st.button("🔍 Run Analysis"):
     df_stock = yf.download(ticker, start=start_date, end=end_date + pd.Timedelta(days=1))
     if df_stock.empty:
